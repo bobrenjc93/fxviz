@@ -11,9 +11,7 @@ type FormatStatus =
   | { kind: "error"; message: string };
 
 export default function Home() {
-  const [draft, setDraft] = useState<string>(
-    typeof window !== "undefined" ? localStorage.getItem("fxviz:last") || "" : ""
-  );
+  const [draft, setDraft] = useState<string>("");
   const [raw, setRaw] = useState<string>("");
   const [formatted, setFormatted] = useState<string>("");
   const [status, setStatus] = useState<FormatStatus>({ kind: "idle" });
@@ -21,12 +19,7 @@ export default function Home() {
   const [showModal, setShowModal] = useState<boolean>(true);
   const MAX_COLS = 120;
 
-  // Persist last draft
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("fxviz:last", draft);
-    }
-  }, [draft]);
+  // No localStorage persistence — input starts empty each load
 
   // Load Pyodide + Black lazily
   const pyodideRef = useRef<any>(null);
@@ -92,9 +85,10 @@ export default function Home() {
     const toFormat = draft.trim();
     if (!toFormat) return;
     setRaw(toFormat);
+    // Close modal immediately for responsiveness and show spinner over page
+    setShowModal(false);
     setStatus({ kind: "loading", step: "Loading Python runtime" });
     await runFormat(toFormat);
-    setShowModal(false);
   }, [draft, runFormat]);
 
   const copyFormatted = useCallback(async () => {
@@ -145,16 +139,16 @@ export default function Home() {
 
       {/* Final code view */}
       {!showModal && (
-        <div className="centerPad">
+        <div className="previewWrap">
           <SyntaxHighlighter
             language="python"
             style={oneDark as any}
             wrapLongLines={true}
             customStyle={{
               background: "transparent",
-              maxWidth: `${MAX_COLS}ch`,
               whiteSpace: "pre-wrap",
               overflowWrap: "anywhere",
+              width: "100%",
             }}
             codeTagProps={{ className: "codeBlock" }}
             showLineNumbers
