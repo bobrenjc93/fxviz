@@ -143,11 +143,13 @@ export default function Home() {
           <SyntaxHighlighter
             language="python"
             style={oneDark as any}
-            wrapLongLines={true}
+            wrapLongLines={false}
             customStyle={{
               background: "transparent",
-              whiteSpace: "pre-wrap",
-              overflowWrap: "anywhere",
+              // Disable soft wrapping; allow horizontal scroll
+              whiteSpace: "pre",
+              wordBreak: "normal",
+              overflowX: "auto",
               width: "100%",
             }}
             codeTagProps={{ className: "codeBlock" }}

@@ -5,7 +5,7 @@ A minimal Next.js app to paste Python graph traces (e.g., long PyTorch dumps) an
 - Client-side Python via Pyodide
 - Formats with Black (installed in-browser using micropip)
 - Paste-in-modal flow with spinner while Black loads
-- Prism-based syntax highlighting, line numbers, soft wrap
+- Prism-based syntax highlighting, line numbers, no soft wrap (horizontal scroll)
 - LocalStorage remembers your last input
 
 ## Run locally
@@ -24,6 +24,6 @@ A minimal Next.js app to paste Python graph traces (e.g., long PyTorch dumps) an
 
 - Black and Pyodide are loaded from a CDN the first time you format, so the initial format may take a few seconds. After that, formatting is instant.
 - Default Black line length is set to 120 to better accommodate wide traces.
-- The preview also wraps long lines at a visual width of 120 characters (120ch) when wrapping is enabled.
+- Long lines no longer wrap; use horizontal scroll to view extra columns.
 - If you need export-to-file or additional themes, let me know and I can add them.
 # fxviz
