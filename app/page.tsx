@@ -11,52 +11,22 @@ type FormatStatus =
   | { kind: "error"; message: string };
 
 export default function Home() {
-
-  const [raw, setRaw] = useState<string>(
-    typeof window !== "undefined"
-      ? localStorage.getItem("fxviz:last") || ""
-      : ""
+  const [draft, setDraft] = useState<string>(
+    typeof window !== "undefined" ? localStorage.getItem("fxviz:last") || "" : ""
   );
-
+  const [raw, setRaw] = useState<string>("");
   const [formatted, setFormatted] = useState<string>("");
   const [status, setStatus] = useState<FormatStatus>({ kind: "idle" });
-  const [wrap, setWrap] = useState<boolean>(true);
+  const [wrap] = useState<boolean>(true);
+  const [showModal, setShowModal] = useState<boolean>(true);
   const MAX_COLS = 120;
 
-  // Split view sizing
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef<boolean>(false);
-  const [split, setSplit] = useState<number>(50); // % width for left pane
-  const onResizerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    draggingRef.current = true;
-    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-  }, []);
-  useEffect(() => {
-    const onMove = (ev: PointerEvent) => {
-      if (!draggingRef.current || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ev.clientX - rect.left;
-      const pct = Math.max(20, Math.min(80, (x / rect.width) * 100));
-      setSplit(pct);
-    };
-    const onUp = () => { draggingRef.current = false; };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, []);
-  const gridStyle = useMemo(() => ({
-    gridTemplateColumns: `minmax(200px, ${split}%) 6px minmax(200px, ${100 - split}%)`,
-  }), [split]);
-
-  // Persist input
+  // Persist last draft
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("fxviz:last", raw);
+      localStorage.setItem("fxviz:last", draft);
     }
-  }, [raw]);
+  }, [draft]);
 
   // Load Pyodide + Black lazily
   const pyodideRef = useRef<any>(null);
@@ -92,15 +62,16 @@ export default function Home() {
     }
   }, []);
 
-  const runFormat = useCallback(async () => {
-    if (!raw?.trim()) {
+  const runFormat = useCallback(async (source?: string) => {
+    const src = (source ?? raw) ?? "";
+    if (!src.trim()) {
       setFormatted("");
       return;
     }
     try {
       const pyodide = await ensureBlack();
       setStatus({ kind: "loading", step: "Formatting with Black" });
-      pyodide.globals.set("__SRC__", raw);
+      pyodide.globals.set("__SRC__", src);
       const out = await pyodide.runPythonAsync(
         [
           "import black",
@@ -113,33 +84,18 @@ export default function Home() {
       setStatus({ kind: "ready", engine: "black" });
     } catch (e) {
       // Fall back to trimmed input if formatting fails
-      setFormatted(raw);
+      setFormatted(src);
     }
   }, [raw, ensureBlack]);
 
-  // Auto-format on input changes (debounced)
-  useEffect(() => {
-    if (!raw?.trim()) {
-      setFormatted("");
-      return;
-    }
-    const t = setTimeout(() => {
-      runFormat();
-    }, 400);
-    return () => clearTimeout(t);
-  }, [raw, runFormat]);
-
-  // Auto-format when user clicks paste or presses a button. We won’t auto-format every keystroke.
-  const onPaste = useCallback(
-    async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const text = e.clipboardData.getData("text/plain");
-      if (text) {
-        // Allow the paste to occur and then trigger formatting
-        setTimeout(runFormat, 0);
-      }
-    },
-    [runFormat]
-  );
+  const onSubmit = useCallback(async () => {
+    const toFormat = draft.trim();
+    if (!toFormat) return;
+    setRaw(toFormat);
+    setStatus({ kind: "loading", step: "Loading Python runtime" });
+    await runFormat(toFormat);
+    setShowModal(false);
+  }, [draft, runFormat]);
 
   const copyFormatted = useCallback(async () => {
     try {
@@ -149,95 +105,64 @@ export default function Home() {
     }
   }, [formatted, raw]);
 
-  const stats = useMemo(() => {
-    const src = formatted || raw || "";
-    return {
-      lines: src ? src.split(/\n/).length : 0,
-      chars: src.length,
-    };
-  }, [formatted, raw]);
+  const finalText = useMemo(() => formatted || raw || "", [formatted, raw]);
 
   return (
     <div className="app">
-      <div className="header">
-        <div className="title">PyGraph Formatter</div>
-        <div className="status muted">
-          {status.kind === "loading" && (
-            <span>⏳ {status.step ?? "Working..."}</span>
-          )}
-          {status.kind === "ready" && <span>✅ Formatter ready</span>}
-          {status.kind === "error" && <span>⚠️ Formatter unavailable</span>}
+      {/* Paste Modal */}
+      {showModal && (
+        <div className="modalOverlay">
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Paste Python">
+            <div className="modalHeader">
+              <div className="title">Paste Python to Format</div>
+              <div className="muted">Black line length: {MAX_COLS}</div>
+            </div>
+            <div className="modalBody">
+              <textarea
+                className="textarea modalTextarea"
+                placeholder="Paste Python here..."
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="modalFooter">
+              <button className="btn" onClick={() => { setDraft(""); }}>Clear</button>
+              <button className="btn" onClick={onSubmit} disabled={!draft.trim()}>
+                Format
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="container" ref={containerRef} style={gridStyle}>
-        <section className="pane">
-          <div className="toolbar">
-            <button className="btn" onClick={runFormat} disabled={!raw.trim()}>
-              Format with Black
-            </button>
-            <button className="btn" onClick={() => setRaw("")}>Clear</button>
-            <div className="muted" style={{ marginLeft: "auto" }}>
-              Paste your Python graph trace here
-            </div>
-          </div>
-          <textarea
-            className="textarea"
-            placeholder="Paste Python here..."
-            value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-            onPaste={onPaste}
-          />
-          <div className="footer">
-            <div className="stats">
-              Input: {raw.split(/\n/).length || 0} lines, {raw.length} chars
-            </div>
-          </div>
-        </section>
+      {/* Spinner while loading/formatting */}
+      {status.kind === "loading" && (
+        <div className="spinnerWrap" aria-live="polite" aria-busy="true">
+          <div className="spinner" />
+        </div>
+      )}
 
-        <div
-          className="resizer"
-          onPointerDown={onResizerDown}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize panels"
-        />
-
-        <section className="pane paneRight">
-          <div className="toolbar">
-            <button className="btn" onClick={copyFormatted} disabled={!raw.trim()}>
-              Copy
-            </button>
-            <button className="btn" onClick={() => setWrap((w) => !w)}>
-              {wrap ? "Disable" : "Enable"} Wrap
-            </button>
-          </div>
-          <div className="content">
-            <div className="previewWrap">
-              <SyntaxHighlighter
-                language="python"
-                style={oneDark as any}
-                wrapLongLines={wrap}
-                customStyle={{
-                  background: "transparent",
-                  maxWidth: `${MAX_COLS}ch`,
-                  whiteSpace: wrap ? "pre-wrap" : undefined,
-                  overflowWrap: wrap ? "anywhere" : undefined,
-                }}
-                codeTagProps={{ className: "codeBlock" }}
-                showLineNumbers
-              >
-                {formatted || raw || ""}
-              </SyntaxHighlighter>
-            </div>
-          </div>
-          <div className="footer">
-            <div className="stats">
-              Output: {stats.lines} lines, {stats.chars} chars
-            </div>
-          </div>
-        </section>
-      </div>
+      {/* Final code view */}
+      {!showModal && (
+        <div className="centerPad">
+          <SyntaxHighlighter
+            language="python"
+            style={oneDark as any}
+            wrapLongLines={true}
+            customStyle={{
+              background: "transparent",
+              maxWidth: `${MAX_COLS}ch`,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+            }}
+            codeTagProps={{ className: "codeBlock" }}
+            showLineNumbers
+          >
+            {finalText}
+          </SyntaxHighlighter>
+        </div>
+      )}
     </div>
   );
 }

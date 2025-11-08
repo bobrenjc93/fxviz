@@ -4,8 +4,8 @@ A minimal Next.js app to paste Python graph traces (e.g., long PyTorch dumps) an
 
 - Client-side Python via Pyodide
 - Formats with Black (installed in-browser using micropip)
-- Prism-based syntax highlighting, line numbers, optional soft wrap
-- Draggable vertical split: resize editor/preview widths
+- Paste-in-modal flow with spinner while Black loads
+- Prism-based syntax highlighting, line numbers, soft wrap
 - LocalStorage remembers your last input
 
 ## Run locally
@@ -16,9 +16,9 @@ A minimal Next.js app to paste Python graph traces (e.g., long PyTorch dumps) an
 
 ## Usage
 
-1. Paste your Python/trace into the left pane.
-2. It auto-formats with Black after a brief pause. If Black cannot load (offline/no network), it falls back to raw input — highlighting still works. You can still press "Format with Black" to force a re-format.
-3. Drag the vertical handle to resize panes. Copy the formatted output from the right pane.
+1. Load the app; a modal appears asking you to paste Python.
+2. Click "Format". You’ll see a spinner while Pyodide + Black load and run.
+3. The page then shows only the formatted code (full width, centered to 120ch).
 
 ## Notes
 
