@@ -1,0 +1,12 @@
+
+> fxviz@1.0.0 dev
+> next dev -p 3001
+
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3001
+  - Experiments (use with caution):
+    · turbo
+
+ ✓ Starting...
+ ✓ Ready in 1156ms
+[?25h
